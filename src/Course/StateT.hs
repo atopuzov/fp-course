@@ -286,8 +286,16 @@ instance Monad f => Applicative (OptionalT f) where
     OptionalT f (a -> b)
     -> OptionalT f a
     -> OptionalT f b
+  -- Does not work?
+  -- (<*>) ofab ofa =
+  --   OptionalT $ lift2 (<*>) (runOptionalT ofab) (runOptionalT ofa)
   (<*>) ofab ofa =
-    OptionalT $ lift2 (<*>) (runOptionalT ofab) (runOptionalT ofa)
+    OptionalT $ let fab = runOptionalT ofab
+                    fa = runOptionalT ofa
+                in fab >>= \o -> case o of
+                                Empty -> return Empty
+                                Full f -> (f <$> ) <$> fa
+
 
 -- | Implement the `Monad` instance for `OptionalT f` given a Monad f.
 --
