@@ -296,7 +296,6 @@ instance Monad f => Applicative (OptionalT f) where
                                 Empty -> return Empty
                                 Full f -> (f <$> ) <$> fa
 
-
 -- | Implement the `Monad` instance for `OptionalT f` given a Monad f.
 --
 -- >>> runOptionalT $ (\a -> OptionalT (Full (a+1) :. Full (a+2) :. Nil)) =<< OptionalT (Full 1 :. Empty :. Nil)
@@ -393,8 +392,21 @@ distinctG ::
   (Integral a, Show a) =>
   List a
   -> Logger Chars (Optional (List a))
-distinctG =
-  error "todo: Course.StateT#distinctG"
+distinctG xs =
+  runOptionalT (evalT (filtering
+    (\a -> StateT $ \s ->
+                     OptionalT $
+                     if a > 100
+                     then log1 ("aborting > 100: " ++ show' a) Empty
+                     else
+                       let st = (Full (S.notMember a s, S.insert a s)) in
+                         if even a
+                         then log1 ("even number: " ++ show' a) st
+                         else pure st
+    ) xs) S.empty)
+
+  -- evalT (filtering (\a -> StateT $ \s -> if a > 100 then Empty else pure (S.notMember a s, S.insert a s)) xs) S.empty
+
 
 onFull ::
   Applicative f =>
