@@ -47,14 +47,15 @@ instance Applicative ExactlyOne where
   pure ::
     a
     -> ExactlyOne a
-  pure =
-    error "todo: Course.Applicative pure#instance ExactlyOne"
+  pure = ExactlyOne
   (<*>) ::
     ExactlyOne (a -> b)
     -> ExactlyOne a
     -> ExactlyOne b
-  (<*>) =
-    error "todo: Course.Applicative (<*>)#instance ExactlyOne"
+  -- (<*>) (ExactlyOne f) (ExactlyOne x) = ExactlyOne $ f x
+  -- (<*>) ff fx = ExactlyOne $ runExactlyOne ff $ runExactlyOne fx
+  (<*>) fa =
+    mapExactlyOne (runExactlyOne fa)
 
 -- | Insert into a List.
 --
@@ -66,14 +67,17 @@ instance Applicative List where
   pure ::
     a
     -> List a
-  pure =
-    error "todo: Course.Applicative pure#instance List"
+  pure x = x :. Nil
   (<*>) ::
     List (a -> b)
     -> List a
     -> List b
-  (<*>) =
-    error "todo: Course.Apply (<*>)#instance List"
+  -- (<*>) Nil _ = Nil
+  -- (<*>) _ Nil = Nil
+  -- (<*>) (f :. fs) xs = (f <$> xs) ++ (fs <*> xs)
+  -- (<*>) ff fa = flatten (map (\f -> map f fa) ff)
+  -- (<*>) ff fa = flatMap (\f -> map f fa) ff
+  (<*>) ff fa = flatMap (flip map fa) ff
 
 -- | Insert into an Optional.
 --
@@ -91,14 +95,15 @@ instance Applicative Optional where
   pure ::
     a
     -> Optional a
-  pure =
-    error "todo: Course.Applicative pure#instance Optional"
+  pure = Full
   (<*>) ::
     Optional (a -> b)
     -> Optional a
     -> Optional b
-  (<*>) =
-    error "todo: Course.Apply (<*>)#instance Optional"
+  -- (<*>) Empty _ = Empty
+  -- (<*>) _ Empty = Empty
+  -- (<*>) (Full f) (Full x) = Full $ f x
+  (<*>) f a = bindOptional (flip mapOptional a) f
 
 -- | Insert into a constant function.
 --
@@ -122,15 +127,14 @@ instance Applicative ((->) t) where
   pure ::
     a
     -> ((->) t a)
-  pure =
-    error "todo: Course.Applicative pure#((->) t)"
+  -- a -> t -> a
+  pure = const
   (<*>) ::
     ((->) t (a -> b))
     -> ((->) t a)
     -> ((->) t b)
-  (<*>) =
-    error "todo: Course.Apply (<*>)#instance ((->) t)"
-
+  -- (t -> a -> b) -> (t -> a) -> (t -> b)
+  (<*>) f g = \t -> f t (g t)
 
 -- | Apply a binary function in the environment.
 --
@@ -157,8 +161,7 @@ lift2 ::
   -> f a
   -> f b
   -> f c
-lift2 =
-  error "todo: Course.Applicative#lift2"
+lift2 f fa fb = f <$> fa <*> fb
 
 -- | Apply a ternary function in the environment.
 -- /can be written using `lift2` and `(<*>)`./
@@ -190,8 +193,7 @@ lift3 ::
   -> f b
   -> f c
   -> f d
-lift3 =
-  error "todo: Course.Applicative#lift3"
+lift3 f fa fb fc = f <$> fa <*> fb <*> fc
 
 -- | Apply a quaternary function in the environment.
 -- /can be written using `lift3` and `(<*>)`./
@@ -224,16 +226,14 @@ lift4 ::
   -> f c
   -> f d
   -> f e
-lift4 =
-  error "todo: Course.Applicative#lift4"
+lift4 f fa fb fc fd = f <$> fa <*> fb <*> fc <*> fd
 
 -- | Apply a nullary function in the environment.
 lift0 ::
   Applicative f =>
   a
   -> f a
-lift0 =
-  error "todo: Course.Applicative#lift0"
+lift0 = pure
 
 -- | Apply a unary function in the environment.
 -- /can be written using `lift0` and `(<*>)`./
@@ -251,8 +251,7 @@ lift1 ::
   (a -> b)
   -> f a
   -> f b
-lift1 =
-  error "todo: Course.Applicative#lift1"
+lift1 f x = f <$> x
 
 -- | Apply, discarding the value of the first argument.
 -- Pronounced, right apply.
@@ -278,7 +277,7 @@ lift1 =
   -> f b
   -> f b
 (*>) =
-  error "todo: Course.Applicative#(*>)"
+  lift2 (const id)
 
 -- | Apply, discarding the value of the second argument.
 -- Pronounced, left apply.
@@ -292,7 +291,7 @@ lift1 =
 -- >>> (1 :. 2 :. 3 :. Nil) <* (4 :. 5 :. Nil)
 -- [1,1,2,2,3,3]
 --
--- >>> Full 7 <* Full 8
+-- >>>  Full 7 <* Full 8
 -- Full 7
 --
 -- prop> \x y z a b c -> (x :. y :. z :. Nil) <* (a :. b :. c :. Nil) == (x :. x :. x :. y :. y :. y :. z :. z :. z :. Nil)
@@ -304,7 +303,7 @@ lift1 =
   -> f a
   -> f b
 (<*) =
-  error "todo: Course.Applicative#(<*)"
+  lift2 const
 
 -- | Sequences a list of structures to a structure of list.
 --
@@ -327,7 +326,7 @@ sequence ::
   List (f a)
   -> f (List a)
 sequence =
-  error "todo: Course.Applicative#sequence"
+  foldRight (lift2 (:.)) (pure Nil)
 
 -- | Replicate an effect a given number of times.
 --
@@ -352,8 +351,8 @@ replicateA ::
   Int
   -> f a
   -> f (List a)
-replicateA =
-  error "todo: Course.Applicative#replicateA"
+replicateA n fa =
+  sequence $ replicate n fa
 
 -- | Filter a list with a predicate that produces an effect.
 --
@@ -380,8 +379,9 @@ filtering ::
   (a -> f Bool)
   -> List a
   -> f (List a)
-filtering =
-  error "todo: Course.Applicative#filtering"
+filtering p xs =
+  foldRight (\a fxs -> lift2 (\b la -> if b then a :. la else la) (p a) fxs) (pure Nil) xs
+
 
 -----------------------
 -- SUPPORT LIBRARIES --
